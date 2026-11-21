@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LinkedIn Outreach Generator</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <div class="app">
+
+    <header class="app-header">
+      <div class="header-icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+          <path d="M20 4H4C2.9 4 2 4.9 2 6V18C2 19.1 2.9 20 4 20H20C21.1 20 22 19.1 22 18V6C22 4.9 21.1 4 20 4Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+          <path d="M2 8H22" stroke="currentColor" stroke-width="2"/>
+          <path d="M6 14H10M14 14H18M6 17H8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <h1 class="app-title">Outreach AI</h1>
+      <div class="key-status" id="key-status" aria-live="polite"></div>
+    </header>
+
+    <nav class="tab-nav" role="tablist" aria-label="Main navigation">
+      <button class="tab-btn active" data-tab="current" role="tab" aria-selected="true" aria-controls="tab-current">GENERATE</button>
+      <button class="tab-btn" data-tab="jobs" role="tab" aria-selected="false" aria-controls="tab-jobs">JOBS</button>
+      <button class="tab-btn" data-tab="recent" role="tab" aria-selected="false" aria-controls="tab-recent">RECENT</button>
+      <button class="tab-btn" data-tab="settings" role="tab" aria-selected="false" aria-controls="tab-settings">SETTINGS</button>
+    </nav>
+
+    <!-- ── CURRENT tab ── -->
+    <section class="tab-content active" id="tab-current" role="tabpanel">
+
+      <div class="alert alert-info hidden" id="page-warning" role="alert">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><path d="M12 8v4M12 16h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        No LinkedIn profile detected. Open a LinkedIn profile and click Scrape &amp; Generate.
+      </div>
+
+      <!-- Profile card (shown after scrape) -->
+      <div class="profile-card hidden" id="profile-section" aria-label="Profile detected">
+        <div class="profile-avatar" id="profile-avatar" aria-hidden="true">?</div>
+        <div class="profile-details">
+          <div class="profile-name" id="profile-name"></div>
+          <div class="profile-headline" id="profile-headline"></div>
+          <div class="profile-company" id="profile-company"></div>
+          <div class="profile-signals hidden" id="profile-signals"></div>
+        </div>
+        <div class="profile-quality-badge hidden" id="quality-badge"></div>
+      </div>
+
+      <!-- Draft restore pill -->
+      <div class="draft-restore hidden" id="draft-restore" role="status" aria-live="polite">
+        <span>📋 Draft restored</span>
+        <button class="btn-link" id="draft-discard-btn">Start fresh</button>
+      </div>
+
+      <!-- Controls -->
+      <div class="controls-row">
+        <div class="field-group">
+          <label class="field-label" for="message-type">Type</label>
+          <div class="select-wrapper">
+            <select id="message-type" class="field-select">
+              <option value="Networking">Networking</option>
+              <option value="Job">Job Opportunity</option>
+              <option value="Referral">Referral Request</option>
+              <option value="Collaboration">Collaboration</option>
+            </select>
+          </div>
+        </div>
+        <div class="field-group">
+          <label class="field-label" for="tone">Tone</label>
+          <div class="select-wrapper">
+            <select id="tone" class="field-select">
+              <option value="Formal">Formal</option>
+              <option value="Neutral" selected>Neutral</option>
+              <option value="Casual">Casual</option>
+            </select>
+          </div>
+        </div>
+        <div class="field-group">
+          <label class="field-label" for="length-key">Length</label>
+          <div class="select-wrapper">
+            <select id="length-key" class="field-select">
+              <option value="CONNECTION_NOTE">Note (300)</option>
+              <option value="SHORT_DM" selected>Short (500)</option>
+              <option value="FULL_MESSAGE">Full (900)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Mode toggle -->
+      <div class="mode-toggle">
+        <button class="mode-btn active" id="mode-simple" aria-pressed="true">⚡ Quick Mode</button>
+        <button class="mode-btn" id="mode-deep" aria-pressed="false">🔍 Deep Mode</button>
+      </div>
+
+      <!-- Quick Mode -->
+      <div id="simple-mode-ui">
+        <button id="scrape-btn" class="btn btn-primary btn-full">
+          <span id="btn-label">Scrape &amp; Generate</span>
+          <span id="btn-spinner" class="spinner hidden" aria-hidden="true"></span>
+        </button>
+      </div>
+
+      <!-- Deep Mode -->
+      <div id="deep-mode-ui" class="hidden">
+        <div class="pipeline-panel" role="region" aria-label="Pipeline status">
+          <div class="pipeline-header">3-Layer Pipeline</div>
+          <div class="layer-row">
+            <div class="layer-badge l1" aria-hidden="true">L1</div>
+            <div class="layer-info">
+              <div class="layer-title">Profile Understanding <span class="layer-mode-tag" id="l1-mode-tag"></span></div>
+              <div class="layer-desc">Parses LinkedIn profile into structured data</div>
+            </div>
+            <div class="layer-status-wrap">
+              <div class="status-dot" id="l1-dot" aria-hidden="true"></div>
+              <span class="layer-status-text" id="l1-text" aria-live="polite">Ready</span>
+            </div>
+          </div>
+          <div class="layer-row">
+            <div class="layer-badge l2" aria-hidden="true">L2</div>
+            <div class="layer-info">
+              <div class="layer-title">Signal Finder <span class="layer-mode-tag local" id="l2-mode-tag">Local</span></div>
+              <div class="layer-desc">Ranks personalization signals from profile</div>
+            </div>
+            <div class="layer-status-wrap">
+              <div class="status-dot" id="l2-dot" aria-hidden="true"></div>
+              <span class="layer-status-text" id="l2-text" aria-live="polite">Ready</span>
+            </div>
+          </div>
+          <div class="layer-row">
+            <div class="layer-badge l3" aria-hidden="true">L3</div>
+            <div class="layer-info">
+              <div class="layer-title">Message Writer <span class="layer-mode-tag" id="l3-mode-tag"></span></div>
+              <div class="layer-desc">Writes personalized message from signals</div>
+            </div>
+            <div class="layer-status-wrap">
+              <div class="status-dot" id="l3-dot" aria-hidden="true"></div>
+              <span class="layer-status-text" id="l3-text" aria-live="polite">Waiting</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Signal chips -->
+        <div class="signals-panel hidden" id="signals-panel" role="region" aria-label="Personalization signals">
+          <div class="signals-label">Personalization signals found</div>
+          <div id="signals-list" class="signals-list"></div>
+        </div>
+
+        <button id="enrich-btn" class="btn btn-primary btn-full">
+          <span id="enrich-label">Scrape + Analyze (L1 + L2)</span>
+          <span id="enrich-spinner" class="spinner hidden" aria-hidden="true"></span>
+        </button>
+        <button id="deep-generate-btn" class="btn btn-secondary btn-full" disabled>
+          <span id="deep-gen-label">Generate Message (L3)</span>
+          <span id="deep-gen-spinner" class="spinner hidden" aria-hidden="true"></span>
+        </button>
+      </div>
+
+      <!-- Status bar -->
+      <div class="status-bar hidden" id="status-message" aria-live="polite" role="status"></div>
+
+      <!-- Message area (skeleton + real) -->
+      <div class="message-area hidden" id="message-section">
+        <!-- Skeleton shimmer (shown while generating) -->
+        <div class="skeleton-shimmer hidden" id="message-skeleton" aria-hidden="true">
+          <div class="skeleton-line long"></div>
+          <div class="skeleton-line medium"></div>
+          <div class="skeleton-line long"></div>
+          <div class="skeleton-line short"></div>
+        </div>
+
+        <div id="message-content">
+          <div class="message-area-header">
+            <span class="message-area-label">Generated Message</span>
+            <span class="char-count" id="char-count" aria-live="polite">0 / 500</span>
+          </div>
+          <textarea id="generated-message" class="message-textarea" rows="8" spellcheck="true" aria-label="Generated message — editable"></textarea>
+
+          <!-- Why this message? panel -->
+          <div class="why-panel hidden" id="why-panel">
+            <button class="why-toggle" id="why-toggle" aria-expanded="false" aria-controls="why-content">
+              Why this message?
+              <svg width="10" height="10" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            </button>
+            <div class="why-content hidden" id="why-content">
+              <div id="why-list"></div>
+            </div>
+          </div>
+
+          <!-- Quality indicators -->
+          <div class="quality-row hidden" id="quality-row">
+            <span class="quality-chip" id="qc-specific"></span>
+            <span class="quality-chip" id="qc-concise"></span>
+            <span class="quality-chip" id="qc-based"></span>
+          </div>
+
+          <div class="action-row">
+            <button id="regenerate-btn" class="btn btn-secondary" title="Get a different message">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M1 4v6h6M23 20v-6h-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10M23 14l-4.64 4.36A9 9 0 0 1 3.51 15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Regenerate
+            </button>
+            <button id="insert-btn" class="btn btn-secondary" title="Insert into open LinkedIn composer">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Insert
+            </button>
+            <button id="copy-btn" class="btn btn-primary" title="Copy to clipboard (Ctrl+Enter)">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" stroke-width="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" stroke="currentColor" stroke-width="2"/></svg>
+              Copy
+            </button>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ── JOBS tab ── -->
+    <section class="tab-content" id="tab-jobs" role="tabpanel" aria-labelledby="tab-jobs-btn">
+      <!-- Tagline -->
+      <div class="jobs-tagline">
+        <span>You click Apply. We prepare everything.</span>
+      </div>
+
+      <!-- Page Status Alert -->
+      <div class="jobs-page-status" id="jobs-page-status">
+        <span class="status-indicator-dot" id="jobs-page-dot"></span>
+        <span id="jobs-page-status-text">Checking page...</span>
+      </div>
+
+      <!-- Career Profile Card (collapsible) -->
+      <div class="career-card" id="career-card">
+        <div class="career-card-header" id="career-card-toggle" role="button" tabindex="0" aria-expanded="false" aria-controls="career-card-body">
+          <div class="career-card-title">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z" stroke="currentColor" stroke-width="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" stroke="currentColor" stroke-width="2"/></svg>
+            <span>Career Profile</span>
+          </div>
+          <div class="career-card-meta">
+            <span class="career-status-tag" id="career-status-tag">Setup</span>
+            <svg class="chevron-icon" id="career-chevron" width="12" height="12" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          </div>
+        </div>
+        <div class="career-card-body hidden" id="career-card-body">
+          <div class="field-group full">
+            <label class="field-label" for="cp-target-roles">Target Roles (comma-separated)</label>
+            <input id="cp-target-roles" type="text" class="field-input" placeholder="Product Manager, Full Stack Engineer" />
+          </div>
+          <div class="field-group full">
+            <label class="field-label" for="cp-key-skills">Key Skills (comma-separated)</label>
+            <input id="cp-key-skills" type="text" class="field-input" placeholder="JavaScript, Python, React, Product Strategy" />
+          </div>
+          <div class="field-group full">
+            <label class="field-label" for="cp-locations">Preferred Locations (comma-separated)</label>
+            <input id="cp-locations" type="text" class="field-input" placeholder="San Francisco, New York, Remote" />
+          </div>
+          <div class="controls-row">
+            <div class="field-group">
+              <label class="field-label" for="cp-work-type">Work Type</label>
+              <div class="select-wrapper">
+                <select id="cp-work-type" class="field-select">
+                  <option value="">Any</option>
+                  <option value="remote">Remote</option>
+                  <option value="hybrid">Hybrid</option>
+                  <option value="onsite">On-site</option>
+                </select>
+              </div>
+            </div>
+            <div class="field-group">
+              <label class="field-label" for="cp-exp-level">Experience</label>
+              <div class="select-wrapper">
+                <select id="cp-exp-level" class="field-select">
+                  <option value="">Any</option>
+                  <option value="internship">Internship</option>
+                  <option value="entry">Entry level</option>
+                  <option value="associate">Associate</option>
+                  <option value="mid">Mid-Senior</option>
+                  <option value="director">Director</option>
+                  <option value="executive">Executive</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <div class="field-group full">
+            <label class="field-label" for="cp-avoid-keywords">Avoid Keywords (comma-separated)</label>
+            <input id="cp-avoid-keywords" type="text" class="field-input" placeholder="Staffing, Unpaid, Contract" />
+          </div>
+          <div class="action-row" style="margin-top:8px">
+            <button id="save-career-btn" class="btn btn-primary btn-sm">Save Profile</button>
+            <button id="infer-career-btn" class="btn btn-secondary btn-sm" title="Infer from uploaded resume">Infer from Resume</button>
+          </div>
+          <div class="status-bar hidden" id="career-status" role="status" aria-live="polite"></div>
+        </div>
+      </div>
+
+      <!-- Search Suggestions ("Find jobs") -->
+      <div class="jobs-subcard" id="search-suggestions-card">
+        <div class="subcard-header">
+          <span class="subcard-title">🔍 Suggested LinkedIn Searches</span>
+          <button class="btn-link" id="refresh-searches-btn">Refresh</button>
+        </div>
+        <div class="search-chips-container" id="search-suggestions-list">
+          <!-- Suggestion pills rendered here -->
+        </div>
+      </div>
+
+      <!-- Action Area depending on current page -->
+      <div class="jobs-page-actions" id="jobs-page-actions">
+        <!-- On Jobs Search page -->
+        <div id="action-jobs-search" class="hidden">
+          <button id="rank-jobs-btn" class="btn btn-primary btn-full">
+            <span id="rank-jobs-label">Rank Jobs on This Page</span>
+            <span id="rank-jobs-spinner" class="spinner hidden" aria-hidden="true"></span>
+          </button>
+          <div class="scroll-hint">Scroll down on LinkedIn to load more cards, then click again.</div>
+          <div id="ranked-jobs-container" class="ranked-jobs-container hidden">
+            <div class="ranked-jobs-header">
+              <span id="ranked-jobs-count">0 jobs ranked</span>
+            </div>
+            <div id="ranked-jobs-list" class="ranked-list"></div>
+          </div>
+        </div>
+
+        <!-- On Job Detail page -->
+        <div id="action-job-detail" class="hidden">
+          <button id="analyze-job-btn" class="btn btn-primary btn-full">
+            <span id="analyze-job-label">Analyze This Job</span>
+            <span id="analyze-job-spinner" class="spinner hidden" aria-hidden="true"></span>
+          </button>
+          <div id="job-kit-container" class="job-kit-container hidden">
+            <!-- Scrape Quality & Metadata -->
+            <div class="kit-topbar">
+              <div class="kit-job-info">
+                <div class="kit-job-title" id="kit-job-title"></div>
+                <div class="kit-job-sub" id="kit-job-company"></div>
+              </div>
+              <div class="kit-badges">
+                <span class="badge-fit" id="kit-fit-badge">Good Fit</span>
+                <span class="badge-quality" id="kit-quality-badge">100% scraped</span>
+              </div>
+            </div>
+
+            <!-- Kit Section A: Match Summary -->
+            <div class="kit-section">
+              <div class="kit-section-header">
+                <span class="kit-sec-title">Match Analysis</span>
+                <button class="btn-copy-sm" data-copy-target="kit-match-text">Copy</button>
+              </div>
+              <div class="kit-sec-body" id="kit-match-text"></div>
+            </div>
+
+            <!-- Kit Section B: Tailored Resume Bullets -->
+            <div class="kit-section">
+              <div class="kit-section-header">
+                <span class="kit-sec-title">Tailored Resume Highlights</span>
+                <button class="btn-copy-sm" data-copy-target="kit-resume-bullets">Copy</button>
+              </div>
+              <div class="kit-sec-body bullets" id="kit-resume-bullets"></div>
+            </div>
+
+            <!-- Kit Section C: Keywords Checklist -->
+            <div class="kit-section">
+              <div class="kit-section-header">
+                <span class="kit-sec-title">Keywords Match</span>
+              </div>
+              <div class="kit-keywords-grid" id="kit-keywords-grid"></div>
+            </div>
+
+            <!-- Kit Section D: Tailored Cover Note -->
+            <div class="kit-section">
+              <div class="kit-section-header">
+                <span class="kit-sec-title">Cover Note (under 1200 chars)</span>
+                <span class="char-count" id="kit-note-count">0 / 1200</span>
+                <button class="btn-copy-sm" data-copy-target="kit-cover-note">Copy</button>
+              </div>
+              <textarea class="message-textarea" id="kit-cover-note" rows="5"></textarea>
+            </div>
+
+            <!-- Kit Section E: Screening Answers -->
+            <div class="kit-section">
+              <div class="kit-section-header">
+                <span class="kit-sec-title">Screening Question Answers</span>
+                <button class="btn-copy-sm" data-copy-target="kit-screening-answers">Copy</button>
+              </div>
+              <div class="kit-sec-body answers" id="kit-screening-answers"></div>
+            </div>
+
+            <!-- Kit Section F: Find People -->
+            <div class="kit-section">
+              <div class="kit-section-header">
+                <span class="kit-sec-title">Reach Out to People at Company</span>
+              </div>
+              <div class="people-links-row" id="kit-people-links"></div>
+            </div>
+
+            <div class="kit-actions">
+              <button id="save-to-tracker-btn" class="btn btn-primary btn-full">Save Job to Tracker</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- On other page -->
+        <div id="action-other-page" class="jobs-empty-hint">
+          Open a LinkedIn job search or job posting to rank jobs or generate an application kit.
+        </div>
+      </div>
+
+      <!-- Application Tracker -->
+      <div class="tracker-section" id="tracker-section">
+        <div class="tracker-header">
+          <div class="tracker-title-row">
+            <span class="subcard-title">📋 Application Tracker</span>
+            <button class="btn-ghost" id="export-csv-btn">Export CSV</button>
+          </div>
+          <div class="tracker-filter-pills" id="tracker-filters">
+            <button class="filter-pill active" data-filter="all">All (<span id="count-all">0</span>)</button>
+            <button class="filter-pill" data-filter="Saved">Saved (<span id="count-saved">0</span>)</button>
+            <button class="filter-pill" data-filter="Applied">Applied (<span id="count-applied">0</span>)</button>
+            <button class="filter-pill" data-filter="Interviewing">Interview (<span id="count-interviewing">0</span>)</button>
+            <button class="filter-pill" data-filter="Follow-up">Follow-up (<span id="count-followup">0</span>)</button>
+          </div>
+          <!-- Note daily limit warning -->
+          <div class="note-counter-bar" id="note-counter-bar">
+            <span id="note-counter-text">Outreach notes today: 0 / 15</span>
+          </div>
+        </div>
+
+        <div class="tracker-list" id="tracker-list">
+          <!-- Tracked jobs rendered here -->
+        </div>
+      </div>
+    </section>
+
+    <!-- ── RECENT tab ── -->
+    <section class="tab-content" id="tab-recent" role="tabpanel" aria-labelledby="tab-recent-btn">
+      <div class="recent-header hidden" id="recent-actions">
+        <span class="recent-subtitle" id="recent-count-label">Recent contacts</span>
+        <button class="btn-ghost" id="clear-recent-btn">Clear all</button>
+      </div>
+      <div id="recent-list" role="list"></div>
+      <div class="empty-state" id="no-recent">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="9" cy="7" r="4" stroke="currentColor" stroke-width="1.5"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        <p>No recent contacts yet.</p>
+        <p class="empty-hint">Generate a message on a LinkedIn profile to see it here.</p>
+      </div>
+    </section>
+
+    <!-- ── SETTINGS tab ── -->
+    <section class="tab-content" id="tab-settings" role="tabpanel" aria-labelledby="tab-settings-btn">
+      <div class="settings-form">
+
+        <!-- API Key section -->
+        <div class="api-key-section">
+          <div class="api-key-label">Anthropic API Key <span class="optional-tag">optional</span></div>
+          <div class="api-key-desc">Leave empty to use Free Mode (local templates, nothing leaves your device). Add your own key to enable AI-written messages.</div>
+          <div class="api-key-input-wrap">
+            <input id="api-key" type="password" class="api-key-input"
+              placeholder="sk-ant-…" autocomplete="off" spellcheck="false"
+              aria-label="Anthropic API key" />
+            <button class="validate-btn" id="validate-btn">Test</button>
+          </div>
+          <div class="key-validation-status hidden" id="key-validation-status" role="alert"></div>
+        </div>
+
+        <div class="field-group full">
+          <label class="field-label" for="user-name">Your Name</label>
+          <input id="user-name" type="text" class="field-input" placeholder="Jane Smith" autocomplete="off" />
+        </div>
+
+        <div class="field-group full">
+          <label class="field-label" for="user-bio">Your Bio</label>
+          <textarea id="user-bio" class="field-textarea" rows="3"
+            placeholder="Brief professional summary — used to personalize messages."></textarea>
+        </div>
+
+        <!-- Resume section -->
+        <div class="field-group full">
+          <label class="field-label">Your Resume (PDF)</label>
+          <div class="file-upload-area" id="file-upload-area" role="button" tabindex="0" aria-label="Upload resume PDF">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M14 2v6h6M12 18v-6M9 15l3-3 3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span id="file-label">Click to upload or drag PDF here</span>
+            <input id="resume-upload" type="file" accept=".pdf" class="file-input" aria-label="Resume PDF file input" />
+          </div>
+          <div class="resume-status hidden" id="resume-status" role="status"></div>
+
+          <!-- Resume preview (shown after AI analysis) -->
+          <div class="resume-preview hidden" id="resume-preview">
+            <div class="resume-preview-header">
+              <span class="resume-preview-label">✓ Resume understood</span>
+              <button class="btn-link" id="reanalyze-btn">Re-analyze</button>
+            </div>
+            <div class="resume-preview-content" id="resume-preview-content"></div>
+          </div>
+
+          <!-- Manual fields shown when no key (can't parse PDF without AI) -->
+          <div class="resume-manual hidden" id="resume-manual">
+            <div class="resume-manual-hint">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><path d="M12 8v4M12 16h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+              AI Mode is needed to read the PDF. Add your skills below to personalize messages in Free Mode.
+            </div>
+            <div class="field-group full" style="margin-top:8px">
+              <label class="field-label" for="manual-skills">Your Top Skills (comma-separated)</label>
+              <input id="manual-skills" type="text" class="field-input" placeholder="Python, Product Management, UX Research" />
+            </div>
+            <div class="field-group full" style="margin-top:6px">
+              <label class="field-label" for="manual-highlight">One Key Achievement</label>
+              <input id="manual-highlight" type="text" class="field-input" placeholder="Led a team of 5 to ship a product used by 10k users" />
+            </div>
+          </div>
+        </div>
+
+        <button id="save-settings-btn" class="btn btn-primary btn-full">Save Settings</button>
+        <div class="status-bar hidden" id="settings-status" role="status" aria-live="polite"></div>
+
+        <div class="settings-note">
+          <strong>Free Mode:</strong> Everything stays on your device — local templates only.<br>
+          <strong>AI Mode:</strong> Profile text and resume are sent to Anthropic using your own API key.
+        </div>
+
+      </div>
+    </section>
+
+  </div>
+
+  <!-- Non-blocking toast -->
+  <div class="toast hidden" id="toast" role="status" aria-live="polite"></div>
+
+  <!-- Regen prompt (when user edited and changes settings) -->
+  <div class="regen-prompt hidden" id="regen-prompt" role="dialog" aria-modal="true" aria-label="Regenerate with new settings?">
+    <span>Settings changed. Regenerate?</span>
+    <div class="regen-prompt-btns">
+      <button class="btn btn-sm btn-primary" id="regen-yes-btn">Yes</button>
+      <button class="btn btn-sm btn-secondary" id="regen-no-btn">Keep edit</button>
+    </div>
+  </div>
+
+  <script src="utils/cache.js"></script>
+  <script src="utils/limits.js"></script>
+  <script src="utils/linkedinUrls.js"></script>
+  <script src="utils/jobScraper.js"></script>
+  <script src="utils/jobRanker.js"></script>
+  <script src="utils/kitBuilder.js"></script>
+  <script src="utils/tracker.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>
